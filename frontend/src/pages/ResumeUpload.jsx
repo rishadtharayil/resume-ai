@@ -1,39 +1,78 @@
 import React, { useState } from 'react';
-import DetailInput from '../components/DetailInput.jsx';
+import { useNavigate } from 'react-router-dom';
+// --- NEW: Import useAuth to check authentication state ---
+import { useAuth } from '../hooks/useAuth';
 
-// --- Resume Upload Page Component (Corrected Version) ---
+/**
+ * The main page for uploading and parsing resumes, with drag-and-drop support.
+ */
 function ResumeUploadPage() {
+    // --- NEW: Get authentication status ---
+    const auth = useAuth();
+
     const [resumeFile, setResumeFile] = useState(null);
-    const [resumeData, setResumeData] = useState(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
-    const [successMessage, setSuccessMessage] = useState('');
+    const [uploadSuccess, setUploadSuccess] = useState(false);
+    const navigate = useNavigate();
+    const [isDragging, setIsDragging] = useState(false);
+
+    const handleFile = (file) => {
+        // Validate that it's a PDF
+        if (file && file.type === "application/pdf") {
+            setResumeFile(file);
+            setError('');
+            setUploadSuccess(false);
+        } else {
+            setError('Please upload a valid PDF file.');
+            setResumeFile(null);
+        }
+    };
 
     const handleFileChange = (event) => {
-        setResumeFile(event.target.files[0]);
-        setError('');
-        setSuccessMessage('');
+        handleFile(event.target.files[0]);
     };
 
-    const handleDataChange = (event) => {
-        const { name, value } = event.target;
-        setSuccessMessage(''); // Clear success message on edit
-        setResumeData(prevData => {
-            const isArrayField = ['skills', 'education', 'experience'].includes(name);
-            return { ...prevData, [name]: isArrayField ? value.split(/,|\n/).map(s => s.trim()) : value };
-        });
+    const handleDragOver = (event) => {
+        event.preventDefault(); // Prevent default behavior (opening file)
+        setIsDragging(true);
     };
+
+    const handleDragLeave = (event) => {
+        event.preventDefault();
+        setIsDragging(false);
+    };
+
+    const handleDrop = (event) => {
+        event.preventDefault();
+        setIsDragging(false);
+        handleFile(event.dataTransfer.files[0]);
+    };
+
 
     const handleUploadAndParse = async () => {
         if (!resumeFile) { setError('Please select a file first.'); return; }
-        setIsLoading(true); setError(''); setSuccessMessage(''); setResumeData(null);
+        setIsLoading(true); setError(''); setUploadSuccess(false);
+        
         const formData = new FormData();
         formData.append('file', resumeFile);
+
         try {
             const response = await fetch('http://localhost:8000/api/extract-text/', { method: 'POST', body: formData });
+            
+            const contentType = response.headers.get("content-type");
+            if (!response.ok) {
+                 if (contentType && contentType.indexOf("application/json") !== -1) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Failed to parse resume.');
+                } else {
+                    throw new Error(`Server returned a non-JSON error (Status: ${response.status})`);
+                }
+            }
+            
             const data = await response.json();
-            if (!response.ok) throw new Error(data.error || 'Failed to parse resume.');
-            setResumeData(data);
+            setUploadSuccess(true); 
+
         } catch (err) {
             setError(err.message);
         } finally {
@@ -41,67 +80,70 @@ function ResumeUploadPage() {
         }
     };
 
-    const handleSaveToDatabase = async () => {
-        if (!resumeData || !resumeData.id) { setError('No data to save.'); return; }
-        setIsLoading(true); setError(''); setSuccessMessage('');
-        try {
-            const response = await fetch(`http://localhost:8000/api/resume/${resumeData.id}/`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(resumeData),
-            });
-            const data = await response.json();
-            if (!response.ok) throw new Error(data.error || 'Failed to save details.');
-            setSuccessMessage(data.message || 'Details saved successfully!');
-        } catch (err) {
-            setError(err.message);
-        } finally {
-            setIsLoading(false);
-        }
+    const startOver = () => { 
+        setResumeFile(null); 
+        setError(''); 
+        setUploadSuccess(false); 
     };
 
-    const startOver = () => { setResumeFile(null); setResumeData(null); setError(''); setSuccessMessage(''); };
-
-    // This component now returns ONLY the content, not the full page layout
     return (
-        <div className="w-full max-w-4xl mx-auto bg-white rounded-lg shadow-xl p-8 space-y-6">
-            <header>
-                <h1 className="text-4xl font-bold text-center text-slate-800 mb-2">AI Resume Parser</h1>
-                <p className="text-center text-slate-500">Upload a PDF to extract, verify, and save details to the database.</p>
-            </header>
-            
-            {error && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-md text-center" role="alert"><strong className="font-bold">Error: </strong>{error}</div>}
-            {successMessage && <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded-md text-center" role="alert"><strong className="font-bold">Success! </strong>{successMessage}</div>}
-            {isLoading && <div className="text-center py-8"><p className="text-lg text-blue-600 animate-pulse">Processing...</p></div>}
+        <div className="max-w-2xl mx-auto">
+            <div className="bg-white rounded-xl shadow-lg border border-slate-200 p-8 text-center">
+                {uploadSuccess ? (
+                    <div>
+                        <h2 className="text-3xl font-bold text-slate-800 mb-4">✅ Analysis Complete!</h2>
+                        <p className="text-slate-600 mb-8">The candidate scorecard has been successfully generated and saved.</p>
+                        <div className="space-y-4">
+                            {/* --- MODIFIED: This button is now conditional --- */}
+                            {auth.isAuthenticated && (
+                                <button 
+                                    onClick={() => navigate('/dashboard')}
+                                    className="w-full bg-indigo-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-indigo-700 transition-colors"
+                                >
+                                    View Dashboard
+                                </button>
+                            )}
+                            <button 
+                                onClick={startOver}
+                                className="w-full bg-slate-100 text-slate-700 font-bold py-3 px-4 rounded-lg hover:bg-slate-200 transition-colors"
+                            >
+                                Upload Another Resume
+                            </button>
+                        </div>
+                    </div>
+                ) : (
+                    <div>
+                        <h1 className="text-4xl md:text-5xl font-bold text-slate-800 mb-4">Smart Resume Analyzer</h1>
+                        <p className="text-slate-600 mb-8">Upload a PDF resume to generate a detailed candidate scorecard.</p>
 
-            {!resumeData && !isLoading && (
-                <div className="border-2 border-dashed border-slate-300 rounded-lg p-8 text-center space-y-4">
-                    <p className="text-slate-600">Upload your resume in PDF format.</p>
-                    <input type="file" accept=".pdf" onChange={handleFileChange} className="block w-full max-w-xs mx-auto text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
-                    <button onClick={handleUploadAndParse} disabled={!resumeFile} className="w-full max-w-xs mx-auto bg-blue-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors">Parse Resume</button>
-                </div>
-            )}
-            
-            {resumeData && !isLoading && (
-                <div className="space-y-6">
-                    <h2 className="text-2xl font-semibold text-slate-700 border-b pb-2">Verify & Edit Extracted Details</h2>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <DetailInput label="Full Name" name="name" value={resumeData.name} onChange={handleDataChange} />
-                        <DetailInput label="Email Address" name="email" value={resumeData.email} onChange={handleDataChange} type="email" />
-                        <DetailInput label="Phone Number" name="phone" value={resumeData.phone} onChange={handleDataChange} />
+                        {error && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-md mb-6" role="alert">{error}</div>}
+                        
+                        <div 
+                            onDragOver={handleDragOver}
+                            onDragLeave={handleDragLeave}
+                            onDrop={handleDrop}
+                            className={`w-full h-32 bg-slate-50 border-2 border-dashed rounded-lg flex flex-col items-center justify-center mb-6 transition-colors ${isDragging ? 'border-indigo-600 bg-indigo-50' : 'border-slate-300'}`}
+                        >
+                            <p className="text-slate-500 mb-2">Drag & drop your PDF here, or</p>
+                            <label htmlFor="file-upload" className="cursor-pointer">
+                                <span className="bg-white text-indigo-600 border border-indigo-600 px-4 py-2 rounded-md hover:bg-indigo-50 transition-colors font-semibold">Choose File</span>
+                            </label>
+                            <input id="file-upload" type="file" accept=".pdf" onChange={handleFileChange} className="hidden" />
+                        </div>
+                        {resumeFile && <p className="text-slate-600 mb-6">Selected file: <strong>{resumeFile.name}</strong></p>}
+
+                        <button 
+                            onClick={handleUploadAndParse} 
+                            disabled={!resumeFile || isLoading} 
+                            className="w-full bg-indigo-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-slate-300 disabled:cursor-not-allowed transition-colors"
+                        >
+                            {isLoading ? 'Analyzing...' : 'Analyze Resume'}
+                        </button>
                     </div>
-                    <DetailInput label="Skills (comma or newline separated)" name="skills" value={resumeData.skills} onChange={handleDataChange} type="textarea" />
-                    <DetailInput label="Education" name="education" value={resumeData.education} onChange={handleDataChange} type="textarea" />
-                    <DetailInput label="Experience" name="experience" value={resumeData.experience} onChange={handleDataChange} type="textarea" />
-                    <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4 pt-4">
-                        <button onClick={startOver} className="w-full bg-slate-500 text-white font-bold py-3 px-4 rounded-lg hover:bg-slate-600 focus:outline-none transition-colors">Start Over</button>
-                        <button onClick={handleSaveToDatabase} className="w-full bg-green-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-green-700 focus:outline-none transition-colors">Verify & Save to Database</button>
-                    </div>
-                </div>
-            )}
-             <footer className="text-center text-slate-500 mt-6 text-sm">
-                Powered by React & Django & Gemini
-            </footer>
+                )}
+                
+                <footer className="text-center text-slate-400 mt-8 text-sm">Powered by AI & Cloud</footer>
+            </div>
         </div>
     );
 }

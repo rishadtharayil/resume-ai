@@ -154,3 +154,5 @@ REST_FRAMEWORK = {
         'rest_framework.permissions.IsAuthenticated',
     ]
 }
+
+# ALLOWED_HOSTS = ['your-app-name.onrender.com']
