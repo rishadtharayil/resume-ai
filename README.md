@@ -14,19 +14,15 @@ This is a full-stack web application designed to streamline the recruitment proc
 
 A high-level overview of the project's directory structure:
 
-
-/
-├── frontend/         # Contains the React.js application
-│   ├── src/
-│   │   ├── components/ # Reusable React components (Scorecard, Layout, etc.)
-│   │   ├── hooks/      # Custom React hooks (e.g., useAuth)
-│   │   └── pages/      # Main page components (Dashboard, Upload, Login)
-│   └── ...
-└── resume_backend/   # Contains the Django project
-├── api/          # The Django app for our REST API (models, views, etc.)
-├── resume_backend/ # Core project settings and configuration
-└── manage.py     # Django's command-line utility
-
+-   **frontend/**: Contains the React.js application.
+    -   **src/**: Main source code.
+        -   **components/**: Reusable React components (Scorecard, Layout, etc.).
+        -   **hooks/**: Custom React hooks (e.g., `useAuth`).
+        -   **pages/**: Main page components (Dashboard, Upload, Login).
+-   **resume_backend/**: Contains the Django project.
+    -   **api/**: The Django app for our REST API (models, views, etc.).
+    -   **resume_backend/**: Core project settings and configuration.
+    -   **manage.py**: Django's command-line utility.
 
 ## Technologies Used
 
