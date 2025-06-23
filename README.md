@@ -10,6 +10,24 @@ This is a full-stack web application designed to streamline the recruitment proc
 - **Employer Dashboard:** A secure, ranked list of all candidates, allowing employers to view scorecards and download original CVs.
 - **RESTful API:** A robust backend built with Django and Django REST Framework to handle data processing and analysis.
 
+## Project Structure
+
+A high-level overview of the project's directory structure:
+
+
+/
+├── frontend/         # Contains the React.js application
+│   ├── src/
+│   │   ├── components/ # Reusable React components (Scorecard, Layout, etc.)
+│   │   ├── hooks/      # Custom React hooks (e.g., useAuth)
+│   │   └── pages/      # Main page components (Dashboard, Upload, Login)
+│   └── ...
+└── resume_backend/   # Contains the Django project
+├── api/          # The Django app for our REST API (models, views, etc.)
+├── resume_backend/ # Core project settings and configuration
+└── manage.py     # Django's command-line utility
+
+
 ## Technologies Used
 
 **Backend:**
@@ -58,7 +76,7 @@ To get this project running locally, you'll need to set up both the backend and 
 
 4.  **Install the required Python packages:**
     ```bash
-    pip install django djangorestframework django-cors-headers Pillow PyMuPDF
+    pip install django djangorestframework django-cors-headers Pillow PyMuPDF python-dotenv
     ```
     *(Note: You can also generate a `requirements.txt` file using `pip freeze > requirements.txt`)*
 
@@ -68,7 +86,6 @@ To get this project running locally, you'll need to set up both the backend and 
       ```
       GEMINI_API_KEY=your_gemini_api_key_here
       ```
-    - The `views.py` file will need to be configured to load this variable.
 
 6.  **Apply database migrations:**
     *(Since the latest version uses a `JSONField`, it's best to start fresh if you have an old database.)*
@@ -124,9 +141,18 @@ You need to run both the backend and frontend servers simultaneously in separate
       ```
     - The application will be available at `http://localhost:5173`.
 
-## How It Works
+## API Endpoints
 
-1.  A user uploads a PDF resume via the React frontend.
-2.  The file is sent to the `/api/extract-text/` endpoint on the Django backend.
-3.  The backend converts the PDF pages to images, sends them to the Google Gemini API with a detailed prompt, and receives a JSON scorecard in return.
-4.  This scorecard is saved in the database, and the candidate is now visible on the employer dashboard.
+| Endpoint                 | Method | Auth Required | Description                                             |
+| ------------------------ | ------ | ------------- | ------------------------------------------------------- |
+| `/api/api-token-auth/`   | POST   | No            | Login with username/password to get an auth token.      |
+| `/api/extract-text/`     | POST   | No            | Upload a PDF resume to generate and save a scorecard.   |
+| `/api/resumes/`          | GET    | Yes           | Get a ranked list of all candidates and their scorecards. |
+| `/api/resumes/<id>/`     | GET    | Yes           | Get the details for a single candidate.                 |
+| `/api/resumes/delete/`   | POST   | Yes           | Bulk delete selected resumes.                           |
+
+## Project Roadmap (Future Enhancements)
+
+- **Job Description Matching:** Implement a feature for employers to post job descriptions. The AI will then analyze and rank candidates based on their suitability for that specific role.
+- **Advanced Filtering:** Allow employers to filter the candidate list by more specific criteria found in the scorecard (e.g., "institution tier," "specific hard skills").
+- **Interview Question Generation:** Add a feature to the scorecard that uses the AI to generate personalized interview questions based on the candidate's resume.
