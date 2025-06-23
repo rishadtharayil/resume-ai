@@ -1,117 +1,132 @@
-# AI-Powered Resume Parser & Applicant Tracking System
+# AI-Powered Resume Analyzer
 
-This is a full-stack web application designed to streamline the initial stages of the hiring process. It uses the Google Gemini API to intelligently parse resumes uploaded as PDFs, extracting key information like contact details, skills, experience, and education into a structured format.
+This is a full-stack web application designed to streamline the recruitment process by leveraging AI to analyze resumes, generate detailed candidate scorecards, and provide actionable insights for hiring managers.
 
-The application features a public-facing page for candidates to upload their resumes and a secure, protected dashboard for employers to log in, view, search, and manage all submitted applications.
+## Key Features
 
-## Core Features
+- **AI Scorecard Generation:** Upload a PDF resume (text-based or image-based) and the application uses the Google Gemini API to perform a deep analysis.
+- **Detailed Candidate Insights:** The generated scorecard includes an overall rating, work experience analysis, skill evaluation, positive indicators, and potential red flags.
+- **Dynamic Frontend:** A clean, responsive user interface built with React and styled with Tailwind CSS.
+- **Employer Dashboard:** A secure, ranked list of all candidates, allowing employers to view scorecards and download original CVs.
+- **RESTful API:** A robust backend built with Django and Django REST Framework to handle data processing and analysis.
 
-* **AI-Powered Parsing:** Leverages the Gemini API to accurately extract structured data from unstructured PDF resumes.
-* **Secure Employer Dashboard:** A protected, login-required section for employers to view and manage candidates.
-* **Search & Filtering:** Employers can instantly search for candidates by name or technical skills.
-* **Bulk Operations:** Employers can select and delete multiple resume records at once.
-* **Original CV Storage:** Stores the original uploaded PDF for employer reference and download.
-* **Backend:** Built with Python and Django, using Django REST Framework for the API.
-* **Frontend:** A modern, multi-page single-page application (SPA) built with React and styled with Tailwind CSS.
+## Technologies Used
 
-## Prerequisites
+**Backend:**
+- Python
+- Django & Django REST Framework
+- Google Gemini API
 
-Before you begin, ensure you have the following installed on your system:
+**Frontend:**
+- React.js
+- Tailwind CSS
+- React Router
 
-* **Python** (version 3.8 or higher)
-* **Node.js** and **npm** (LTS version recommended)
-* **Git** for version control
+## Setup and Installation
 
-## How to Run the Project Locally
+To get this project running locally, you'll need to set up both the backend and the frontend.
 
-Follow these steps to set up and run the application on your local machine.
+---
 
-### 1. Clone the Repository
+### 1. Backend Setup (Django)
 
-First, clone this repository to your local machine:
-```bash
-git clone <your-repository-url>
-cd <your-project-folder>
-```
+**Prerequisites:**
+- Python 3.8+
+- `pip`
 
-### 2. Backend Setup (Django)
+**Instructions:**
 
-All these commands should be run from the `resume_backend` directory.
+1.  **Clone the repository:**
+    ```bash
+    git clone <your-repository-url>
+    cd <your-repository-name>
+    ```
 
-**a. Create and Activate Virtual Environment:**
-```bash
-# Navigate into the backend directory
-cd resume_backend
+2.  **Navigate to the backend directory:**
+    ```bash
+    cd resume_backend
+    ```
 
-# Create a virtual environment
-python -m venv venv
+3.  **Create a virtual environment and activate it:**
+    ```bash
+    python -m venv venv
+    # On Windows
+    venv\Scripts\activate
+    # On macOS/Linux
+    source venv/bin/activate
+    ```
 
-# Activate it
-# On Windows:
-venv\Scripts\activate
-# On macOS/Linux:
-source venv/bin/activate
-```
+4.  **Install the required Python packages:**
+    ```bash
+    pip install django djangorestframework django-cors-headers Pillow PyMuPDF
+    ```
+    *(Note: You can also generate a `requirements.txt` file using `pip freeze > requirements.txt`)*
 
-**b. Install Python Dependencies:**
-```bash
-pip install -r requirements.txt
-```
+5.  **Set up environment variables:**
+    - In the `resume_backend` directory, create a file named `.env`.
+    - Add your Google Gemini API key to this file:
+      ```
+      GEMINI_API_KEY=your_gemini_api_key_here
+      ```
+    - The `views.py` file will need to be configured to load this variable.
 
-**c. Set Up Environment Variables:**
-This project requires a Google Gemini API key.
+6.  **Apply database migrations:**
+    *(Since the latest version uses a `JSONField`, it's best to start fresh if you have an old database.)*
+    ```bash
+    python manage.py makemigrations
+    python manage.py migrate
+    ```
 
-1. Get an API key from [Google AI Studio](https://aistudio.google.com/app/apikey).
-2. Set it as an environment variable in your terminal. **You must do this every time you open a new terminal.**
-   ```bash
-   # On Windows:
-   set GEMINI_API_KEY=YOUR_API_KEY_HERE
-   # On macOS/Linux:
-   export GEMINI_API_KEY=YOUR_API_KEY_HERE
-   ```
+7.  **Create a superuser to access the admin and get an auth token:**
+    ```bash
+    python manage.py createsuperuser
+    ```
 
-**d. Prepare the Database:**
-```bash
-python manage.py makemigrations
-python manage.py migrate
-```
+---
 
-**e. Create an Employer Account:**
-This creates the login credentials for the employer dashboard.
-```bash
-python manage.py createsuperuser
-```
-Follow the prompts to create a username, email, and password.
+### 2. Frontend Setup (React)
 
-**f. Start the Django Server:**
-```bash
-python manage.py runserver
-```
-Your backend API is now running at `http://localhost:8000`. Keep this terminal open.
+**Prerequisites:**
+- Node.js and `npm`
 
-### 3. Frontend Setup (React)
+**Instructions:**
 
-Open a **new terminal** for these commands.
+1.  **Navigate to the frontend directory:**
+    ```bash
+    cd frontend
+    ```
 
-**a. Navigate to the Frontend Directory:**
-```bash
-# From the project root
-cd frontend
-```
+2.  **Install the required npm packages:**
+    ```bash
+    npm install
+    ```
 
-**b. Install Node Dependencies:**
-```bash
-npm install
-```
+---
 
-**c. Start the React Development Server:**
-```bash
-npm run dev
-```
-Your React application is now running, usually at `http://localhost:5173`.
+## How to Run the Application
 
-## How to Use the Application
+You need to run both the backend and frontend servers simultaneously in separate terminals.
 
-1. **Candidate View:** Open your browser and go to `http://localhost:5173`. You can upload a resume, see the parsed data, correct it, and save it to the database.
-2. **Employer Login:** Navigate to `http://localhost:5173/login`. Use the superuser credentials you created in the backend setup to log in.
-3. **Employer Dashboard:** After logging in, you will be redirected to `http://localhost:5173/dashboard`, where you can view, search, select, delete, and download all submitted resumes.
+1.  **Start the Django Backend Server:**
+    - Navigate to the `resume_backend` directory.
+    - Make sure your virtual environment is activated.
+    - Run the server:
+      ```bash
+      python manage.py runserver
+      ```
+    - The backend API will be available at `http://localhost:8000`.
+
+2.  **Start the React Frontend Server:**
+    - Navigate to the `frontend` directory.
+    - Run the development server:
+      ```bash
+      npm run dev
+      ```
+    - The application will be available at `http://localhost:5173`.
+
+## How It Works
+
+1.  A user uploads a PDF resume via the React frontend.
+2.  The file is sent to the `/api/extract-text/` endpoint on the Django backend.
+3.  The backend converts the PDF pages to images, sends them to the Google Gemini API with a detailed prompt, and receives a JSON scorecard in return.
+4.  This scorecard is saved in the database, and the candidate is now visible on the employer dashboard.
