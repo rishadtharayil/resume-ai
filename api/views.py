@@ -9,40 +9,78 @@ import json
 import urllib.request
 import fitz 
 import base64
+import re
 
-# --- MODIFIED: Added 'models' import ---
 from django.db import models
 from django.db.models import Q
 from django.db.models.functions import Cast
 from django.db.models import FloatField
 from rest_framework.permissions import AllowAny, IsAuthenticated
-from .serializers import ResumeSerializer
-from .models import Resume
+from .serializers import ResumeSerializer, JobDescriptionSerializer
+from .models import Resume, JobDescription
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
-class ExtractTextView(APIView):
-    permission_classes = [AllowAny]
+class JobDescriptionViewSet(viewsets.ModelViewSet):
+    serializer_class = JobDescriptionSerializer
+    
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve']:
+            self.permission_classes = [AllowAny]
+        else:
+            self.permission_classes = [IsAuthenticated]
+        return super().get_permissions()
+
+    def get_queryset(self):
+        if self.action in ['list', 'retrieve']:
+            return JobDescription.objects.all().order_by('-created_at')
+        
+        user = self.request.user
+        if user and user.is_authenticated:
+            return JobDescription.objects.filter(created_by=user)
+        return JobDescription.objects.none()
+
+    def perform_create(self, serializer):
+        serializer.save(created_by=self.request.user)
+
+
+class AnalyzeResumeView(APIView):
+    permission_classes = [AllowAny] 
+
     def post(self, request, *args, **kwargs):
         if not GEMINI_API_KEY:
             return Response({"error": "Gemini API key is not configured."}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        if 'file' not in request.FILES:
-            return Response({"error": "No file uploaded."}, status=status.HTTP_400_BAD_REQUEST)
         
-        pdf_file = request.FILES['file']
+        pdf_file = request.FILES.get('file')
+        job_id = request.data.get('job_description_id')
+        job_text = ''
+
+        if not pdf_file:
+            return Response({"error": "No resume file provided."}, status=status.HTTP_400_BAD_REQUEST)
+
+        job_description_instance = None
+        if job_id:
+            try:
+                job_description_instance = JobDescription.objects.get(id=job_id)
+                job_text = job_description_instance.description
+            except JobDescription.DoesNotExist:
+                return Response({"error": "Job Description not found."}, status=status.HTTP_404_NOT_FOUND)
+        
+        if not job_text:
+             return Response({"error": "No Job Description provided."}, status=status.HTTP_400_BAD_REQUEST)
+
         try:
             pdf_content = pdf_file.read()
-            # --- MODIFIED: Call the new scorecard generator ---
-            scorecard = self.generate_scorecard_with_gemini(pdf_content)
+            scorecard = self.generate_comparative_scorecard(pdf_content, job_text)
 
             if "error" in scorecard:
                 return Response({"error": scorecard["error"]}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-            # --- MODIFIED: Save scorecard to the database ---
             resume = Resume.objects.create(
                 name=scorecard.get('basic_information', {}).get('name'),
                 email=scorecard.get('basic_information', {}).get('email'),
-                scorecard_data=scorecard, # Save the entire JSON object
+                scorecard_data=scorecard,
+                job_description=job_description_instance, 
                 original_cv=pdf_file
             )
             
@@ -52,45 +90,35 @@ class ExtractTextView(APIView):
         except Exception as e:
             return Response({"error": f"An unexpected error occurred: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-    def generate_scorecard_with_gemini(self, pdf_content):
+    def generate_comparative_scorecard(self, pdf_content, job_description_text):
         api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key={GEMINI_API_KEY}"
         
-        # --- NEW "SUPER-PROMPT" ---
+        # --- MODIFIED: Final, more robust prompt ---
         prompt = f"""
-        You are a world-class Senior Technical Recruiter and Data Analyst. Your task is to analyze the provided resume (as page images) and generate a comprehensive "Candidate Scorecard" in a single, valid JSON object. Do not include any text outside of the JSON object.
+        You are a hiring analyst. Your only task is to analyze the provided resume against the job description and return a single, valid JSON object. Your response must be only the JSON, with no other text.
 
-        Analyze all sections of the resume to fill out the following JSON structure. For any fields where information is not available, use `null` for single values or an empty list `[]` for arrays.
+        **CRITICAL ANALYSIS RULES:**
+        1.  **YOU MUST PROVIDE A `match_score`:** This score (1.0-10.0) must reflect the candidate's suitability. For example, a score of 75% should be returned as 7.5.
+        2.  **HANDLE ALL RESUME TYPES:** If the resume lacks a standard "Work Experience" section, you MUST use the "Projects," "Internships," "Relevant Experience," and "Education" sections to populate the `experience_analysis` object. Do not return null for this field.
+        3.  **POPULATE ALL FIELDS:** You must provide a value for every field in the required JSON structure.
 
-        **JSON Structure to Populate:**
+        **Job Description to Analyze Against:**
+        ---
+        {job_description_text}
+        ---
+
+        **Required JSON Output Structure:**
         {{
-          "overall_score": "number (1.0-10.0, float)",
-          "basic_information": {{
-            "name": "string",
-            "email": "string",
-            "phone": "string",
-            "linkedin": "string (full URL, or null)",
-            "location": "string (e.g., 'City, Country')"
-          }},
-          "work_experience_analysis": {{
-            "seniority_progression": ["string (e.g., 'Intern -> Software Engineer -> Senior Engineer')"],
-            "tenure_summary": "string (e.g., 'Average tenure of 2.5 years, showing stability.')",
-            "job_hopping_flag": "boolean (true if tenure is <1 year at multiple recent companies)",
-            "relevant_domains": ["string (e.g., 'Finance', 'Healthcare', 'E-commerce')"]
-          }},
-          "education_analysis": {{
-            "highest_degree": "string (e.g., 'M.S. in Computer Science')",
-            "institution_tier": "string (e.g., 'Top-Tier', 'Well-Known', 'Standard', or 'Unknown')",
-            "time_to_complete_flag": "boolean (true if time taken seems unusually long)"
-          }},
-          "skillset_evaluation": {{
-            "hard_skills": ["string"],
-            "soft_skills": ["string"],
-            "certifications": ["string"]
-          }},
-          "positive_indicators": ["string (e.g., 'Clear career growth with promotions', 'Contributions to open-source projects', 'Quantifiable achievements with metrics like X% revenue increase')"],
-          "red_flags": ["string (e.g., 'Unexplained employment gap between 2020-2021', 'Vague role descriptions lacking specific impact', 'Overuse of buzzwords without substance')"],
-          "cultural_fit_summary": "string (A brief summary based on language used, e.g., 'Language suggests a collaborative and ownership-driven mindset.')",
-          "personality_signals": ["string (e.g., 'Uses confident, action-oriented language', 'Focuses on team achievements')"]
+          "match_score": "number",
+          "summary": "string",
+          "skill_gap_analysis": ["string"],
+          "basic_information": {{ "name": "string", "email": "string", "phone": "string", "linkedin": "string" }},
+          "experience_analysis": {{ "seniority_progression": ["string"], "tenure_summary": "string", "job_hopping_flag": "boolean", "relevant_domains": ["string"] }},
+          "skillset_evaluation": {{ "hard_skills": ["string"], "soft_skills": ["string"], "certifications": ["string"] }},
+          "positive_indicators": ["string"],
+          "red_flags": ["string"],
+          "cultural_fit_summary": "string",
+          "personality_signals": ["string"]
         }}
         """
         
@@ -100,11 +128,8 @@ class ExtractTextView(APIView):
             doc = fitz.open(stream=pdf_content, filetype="pdf")
             for page in doc:
                 pix = page.get_pixmap(dpi=200)
-                img_bytes = pix.tobytes("png")
-                base64_image = base64.b64encode(img_bytes).decode('utf-8')
-                payload_parts.append({
-                    "inline_data": { "mime_type": "image/png", "data": base64_image }
-                })
+                base64_image = base64.b64encode(pix.tobytes("png")).decode('utf-8')
+                payload_parts.append({"inline_data": { "mime_type": "image/png", "data": base64_image }})
 
             payload = { "contents": [{"parts": payload_parts}], "generationConfig": {"response_mime_type": "application/json"} }
             data = json.dumps(payload).encode("utf-8")
@@ -113,8 +138,27 @@ class ExtractTextView(APIView):
             with urllib.request.urlopen(req) as response:
                 if response.status != 200:
                     return {"error": f"Gemini API Error {response.status}: {response.read().decode('utf-8')}"}
+                
                 result = json.loads(response.read().decode("utf-8"))
-                return json.loads(result['candidates'][0]['content']['parts'][0]['text'])
+                raw_text = result['candidates'][0]['content']['parts'][0]['text']
+                
+                match = re.search(r'\{.*\}', raw_text, re.DOTALL)
+                
+                if not match:
+                    return {"error": "Could not find a valid JSON object in the AI response."}
+                
+                json_string = match.group(0)
+                scorecard = json.loads(json_string)
+
+                # --- NEW: Score Normalization Safeguard ---
+                # Check if the score is out of the 1-10 range and normalize it.
+                if 'match_score' in scorecard and scorecard['match_score'] > 10:
+                    scorecard['match_score'] /= 10.0
+                
+                return scorecard
+
+        except json.JSONDecodeError as e:
+            return {"error": f"Failed to decode JSON from AI response: {e}. Raw text was: '{raw_text}'"}
         except Exception as e:
             return {"error": str(e)}
 
@@ -123,33 +167,21 @@ class ResumeViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        # --- MODIFIED: Ordering by score within the JSONField ---
-        # The '->>' operator extracts a JSON field as text. We cast it to a float to sort numerically.
-        # `nulls_last=True` ensures resumes without a score appear at the end.
-        queryset = Resume.objects.annotate(
-            score=Cast(models.F('scorecard_data__overall_score'), FloatField())
+        queryset = Resume.objects.all()
+        job_id = self.request.query_params.get('job_id')
+        if job_id:
+            queryset = queryset.filter(job_description__id=job_id)
+        
+        queryset = queryset.annotate(
+            score=Cast(models.F('scorecard_data__match_score'), FloatField())
         ).order_by('-score', '-uploaded_on')
         
-        search_term = self.request.query_params.get('search', None)
-        if search_term:
-            # You can still search by name or email
-            queryset = queryset.filter(Q(name__icontains=search_term) | Q(email__icontains=search_term))
-            
         return queryset
 
 class BulkDeleteResumesView(APIView):
     permission_classes = [IsAuthenticated]
     def post(self, request, *args, **kwargs):
         ids_to_delete = request.data.get('ids', [])
-        if not ids_to_delete or not isinstance(ids_to_delete, list):
-            return Response({"error": "A list of 'ids' is required."}, status=status.HTTP_400_BAD_REQUEST)
-        try:
-            resumes_to_delete = Resume.objects.filter(pk__in=ids_to_delete)
-            count = resumes_to_delete.count()
-            resumes_to_delete.delete()
-            return Response({"message": f"{count} resume(s) deleted successfully."}, status=status.HTTP_200_OK)
-        except Exception as e:
-            return Response({"error": f"An error occurred during deletion: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-# --- REMOVED ---
-# UpdateResumeView and CategoryListView are removed as they are no longer needed in this new design.
+        if not ids_to_delete: return Response({"error": "A list of 'ids' is required."}, status=status.HTTP_400_BAD_REQUEST)
+        Resume.objects.filter(pk__in=ids_to_delete).delete()
+        return Response({"message": f"Resumes deleted successfully."}, status=status.HTTP_200_OK)

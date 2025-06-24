@@ -35,7 +35,9 @@ const FlagList = ({ items, type }) => {
 const ScoreCircle = ({ score }) => {
     const radius = 50;
     const circumference = 2 * Math.PI * radius;
-    const offset = score ? circumference - (score / 10) * circumference : circumference;
+    // Ensure score is between 0 and 10 for calculation
+    const normalizedScore = Math.max(0, Math.min(10, score || 0));
+    const offset = circumference - (normalizedScore / 10) * circumference;
 
     return (
         <div className="relative flex items-center justify-center w-32 h-32">
@@ -64,23 +66,19 @@ const ScoreCircle = ({ score }) => {
 const ScorecardModal = ({ resume, onClose }) => {
     if (!resume || !resume.scorecard_data) return null;
 
+    // --- FIX: Changed 'overall_score' to 'match_score' ---
     const {
-        overall_score,
+        match_score,
+        summary,
+        skill_gap_analysis,
         basic_information,
-        work_experience_analysis,
-        education_analysis,
+        experience_analysis,
         skillset_evaluation,
         positive_indicators,
         red_flags,
         cultural_fit_summary,
         personality_signals,
     } = resume.scorecard_data;
-
-    // --- FIX: Ensure the LinkedIn URL is absolute ---
-    const linkedInUrl = basic_information?.linkedin;
-    const correctedLinkedInUrl = linkedInUrl && !/^https?:\/\//i.test(linkedInUrl) 
-        ? `https://${linkedInUrl}` 
-        : linkedInUrl;
 
     return (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
@@ -92,17 +90,17 @@ const ScorecardModal = ({ resume, onClose }) => {
                     <div>
                         <h2 className="text-3xl font-bold text-slate-800">{basic_information?.name || 'Unknown Candidate'}</h2>
                         <p className="text-slate-500">{basic_information?.email} | {basic_information?.phone}</p>
-                        {/* --- MODIFIED: Use the corrected URL --- */}
-                        {correctedLinkedInUrl && <a href={correctedLinkedInUrl} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline">LinkedIn Profile</a>}
+                        {basic_information?.linkedin && <a href={`https://${basic_information.linkedin.replace(/^https?:\/\//,'')}`} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline">LinkedIn Profile</a>}
                     </div>
                     <button onClick={onClose} className="text-3xl text-slate-400 hover:text-slate-600">&times;</button>
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     <div className="lg:col-span-1 space-y-6">
-                        <Section title="Overall Score">
+                        <Section title="Match Score">
                             <div className="flex items-center justify-center pt-2">
-                                <ScoreCircle score={overall_score} />
+                                {/* --- FIX: Pass 'match_score' to the component --- */}
+                                <ScoreCircle score={match_score} />
                             </div>
                         </Section>
                         <Section title="✅ Positive Indicators">
@@ -116,9 +114,9 @@ const ScorecardModal = ({ resume, onClose }) => {
                     <div className="lg:col-span-2 space-y-6">
                         <Section title="Experience Analysis">
                             <div className="space-y-3 text-sm text-slate-700">
-                                <p><strong>Progression:</strong> {work_experience_analysis?.seniority_progression?.join(', ') || 'N/A'}</p>
-                                <p><strong>Tenure:</strong> {work_experience_analysis?.tenure_summary || 'N/A'}</p>
-                                <p><strong>Domains:</strong> {work_experience_analysis?.relevant_domains?.join(', ') || 'N/A'}</p>
+                                <p><strong>Progression:</strong> {experience_analysis?.seniority_progression?.join(', ') || 'N/A'}</p>
+                                <p><strong>Tenure:</strong> {experience_analysis?.tenure_summary || 'N/A'}</p>
+                                <p><strong>Domains:</strong> {experience_analysis?.relevant_domains?.join(', ') || 'N/A'}</p>
                             </div>
                         </Section>
                          <Section title="Skillset Evaluation">
@@ -144,7 +142,7 @@ const ScorecardModal = ({ resume, onClose }) => {
                             </div>
                         </Section>
                         <Section title="Personality & Culture Fit">
-                             <p className="text-slate-700 italic mb-3">"{cultural_fit_summary || 'No specific cultural fit summary available.'}"</p>
+                             <p className="text-slate-700 italic mb-3">"{summary || 'No summary available.'}"</p>
                              <div className="flex flex-wrap gap-2">
                                 {personality_signals?.map(signal => <Pill key={signal} text={signal} />) || ''}
                             </div>
