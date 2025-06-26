@@ -1,28 +1,24 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 
-/**
- * A dedicated page for an applicant to apply for a specific job.
- */
 function ApplicationPage() {
-    const { jobId } = useParams(); // Get job ID from the URL
+    const { jobId } = useParams();
     const navigate = useNavigate();
 
-    const [jobTitle, setJobTitle] = useState('');
+    const [jobDetails, setJobDetails] = useState(null);
     const [resumeFile, setResumeFile] = useState(null);
     const [isDragging, setIsDragging] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState('');
     const [uploadSuccess, setUploadSuccess] = useState(false);
 
-    // Fetch the job details to display on the page
     useEffect(() => {
         const fetchJobDetails = async () => {
             try {
                 const response = await fetch(`http://localhost:8000/api/jobs/${jobId}/`);
                 if (!response.ok) throw new Error('Could not find the specified job posting.');
                 const data = await response.json();
-                setJobTitle(data.title);
+                setJobDetails(data);
             } catch (err) {
                 setError(err.message);
             }
@@ -66,12 +62,10 @@ function ApplicationPage() {
                 method: 'POST',
                 body: formData,
             });
-
             if (!response.ok) {
                 const errorData = await response.json();
                 throw new Error(errorData.error || 'Application failed.');
             }
-            
             setUploadSuccess(true);
         } catch (err) {
             setError(err.message);
@@ -84,7 +78,7 @@ function ApplicationPage() {
         return (
             <div className="max-w-2xl mx-auto bg-white rounded-xl shadow-lg border border-slate-200 p-8 text-center">
                 <h2 className="text-3xl font-bold text-slate-800 mb-4">✅ Application Sent!</h2>
-                <p className="text-slate-600 mb-8">Thank you for applying for the {jobTitle} position. We have received your resume and will be in touch if there's a good fit.</p>
+                <p className="text-slate-600 mb-8">Thank you for applying for the {jobDetails?.title} position. We have received your resume and will be in touch if there's a good fit.</p>
                 <button onClick={() => navigate('/')} className="w-full bg-indigo-600 text-white font-bold py-3 px-4 rounded-lg hover:bg-indigo-700">
                     Back to Job Board
                 </button>
@@ -95,13 +89,17 @@ function ApplicationPage() {
     return (
         <div className="max-w-2xl mx-auto">
             <div className="bg-white rounded-xl shadow-lg border border-slate-200 p-8">
-                {jobTitle ? (
+                {jobDetails ? (
                     <div>
                         <Link to="/" className="text-sm text-slate-500 hover:text-indigo-600 mb-4 inline-block">&larr; Back to all jobs</Link>
                         <h1 className="text-xl text-slate-600">You are applying for:</h1>
-                        <h2 className="text-3xl font-bold text-slate-800">{jobTitle}</h2>
+                        <h2 className="text-3xl font-bold text-slate-800">{jobDetails.title}</h2>
                         
-                        <div className="my-8 border-t border-slate-200"></div>
+                        {/* --- MODIFIED: Render formatted description --- */}
+                        <div 
+                            className="my-8 border-t border-slate-200 pt-8 prose max-w-none"
+                            dangerouslySetInnerHTML={{ __html: jobDetails.description }}
+                        />
 
                         <h3 className="text-xl font-semibold text-slate-700 mb-4">Upload Your Resume to Apply</h3>
 

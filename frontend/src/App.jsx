@@ -12,7 +12,8 @@ import CandidateListPage from './pages/CandidateListPage';
 import ManageJobsPage from './pages/ManageJobsPage';
 import PublicJobsPage from './pages/PublicJobsPage';
 import ApplicationPage from './pages/ApplicationPage';
-
+// --- NEW: Import the EditJobPage ---
+import EditJobPage from './pages/EditJobPage';
 
 function App() {
     const auth = useAuth();
@@ -32,6 +33,8 @@ function App() {
                         <Route path="dashboard" element={<DashboardPage auth={auth} />} />
                         <Route path="dashboard/job/:jobId/candidates" element={<CandidateListPage auth={auth} />} />
                         <Route path="manage-jobs" element={<ManageJobsPage auth={auth} />} />
+                        {/* --- NEW: Route for editing a specific job --- */}
+                        <Route path="edit-job/:jobId" element={<EditJobPage auth={auth} />} />
                     </Route>
                     
                     <Route path="*" element={<div className="text-center"><h2>Page Not Found!</h2></div>} />

@@ -1,12 +1,9 @@
 from django.db import models
-# --- NEW: Import the User model ---
 from django.contrib.auth.models import User
 
-# --- NEW: JobDescription Model ---
 class JobDescription(models.Model):
     title = models.CharField(max_length=255)
     description = models.TextField()
-    # Link to the employer who posted the job
     created_by = models.ForeignKey(User, on_delete=models.CASCADE)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -14,12 +11,26 @@ class JobDescription(models.Model):
         return self.title
 
 class Resume(models.Model):
+    # --- NEW: Status Field ---
+    STATUS_CHOICES = [
+        ('New', 'New'),
+        ('Under Review', 'Under Review'),
+        ('Interviewing', 'Interviewing'),
+        ('Offer', 'Offer'),
+        ('Hired', 'Hired'),
+        ('Rejected', 'Rejected'),
+    ]
+    status = models.CharField(
+        max_length=50,
+        choices=STATUS_CHOICES,
+        default='New',
+        help_text="The current status of the applicant in the hiring pipeline."
+    )
+
     name = models.CharField(max_length=255, null=True, blank=True)
     email = models.EmailField(null=True, blank=True)
     scorecard_data = models.JSONField(null=True, blank=True)
     
-    # --- MODIFIED: Link resume to a specific job description ---
-    # This can be null if a resume is uploaded without a specific job in mind.
     job_description = models.ForeignKey(JobDescription, on_delete=models.SET_NULL, null=True, blank=True, related_name='resumes')
 
     original_cv = models.FileField(upload_to='resumes/', null=True, blank=True, help_text="Upload the original CV file")

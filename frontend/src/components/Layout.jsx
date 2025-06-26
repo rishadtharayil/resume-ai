@@ -31,7 +31,11 @@ function Layout({ auth }) {
                                     <Link to="/dashboard" className={`px-3 py-2 rounded-md text-sm font-medium ${isActive('/dashboard') ? 'bg-indigo-50 text-indigo-700' : 'text-slate-700 hover:bg-slate-100'}`}>
                                         Dashboard
                                     </Link>
-                                    <button onClick={auth.logout} className="px-3 py-2 rounded-md text-sm font-medium text-slate-700 hover:bg-slate-100">
+                                    {/* --- MODIFIED: Added red hover effect --- */}
+                                    <button 
+                                        onClick={auth.logout} 
+                                        className="px-3 py-2 rounded-md text-sm font-medium text-slate-700 hover:bg-red-100 hover:text-red-700 transition-colors"
+                                    >
                                         Logout
                                     </button>
                                 </>

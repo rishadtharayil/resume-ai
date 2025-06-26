@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 
-// A new modal component for viewing the full job description
+// A modal component for viewing the full job description
 const JobDetailModal = ({ job, onClose }) => {
     if (!job) return null;
     return (
@@ -14,38 +14,56 @@ const JobDetailModal = ({ job, onClose }) => {
                     <h2 className="text-2xl font-bold text-slate-800">{job.title}</h2>
                     <button onClick={onClose} className="text-2xl text-slate-400 hover:text-slate-600">&times;</button>
                 </div>
-                <div className="mt-4 prose max-w-none">
-                    <p className="whitespace-pre-wrap text-slate-600">{job.description}</p>
-                </div>
+                {/* Use dangerouslySetInnerHTML to render formatted HTML from the description */}
+                <div 
+                    className="mt-4 prose max-w-none prose-headings:text-slate-700 prose-p:text-slate-600 prose-ul:text-slate-600"
+                    dangerouslySetInnerHTML={{ __html: job.description }}
+                />
             </div>
         </div>
     );
 };
 
-/**
- * This page now serves as the public job board, displaying all available job
- * postings for applicants to view and apply for.
- */
+// Reusable hook for debouncing input
+function useDebounce(value, delay) {
+    const [debouncedValue, setDebouncedValue] = useState(value);
+    useEffect(() => {
+        const handler = setTimeout(() => { setDebouncedValue(value); }, delay);
+        return () => { clearTimeout(handler); };
+    }, [value, delay]);
+    return debouncedValue;
+}
+
+
 function PublicJobsPage() {
+    // --- FIX: Simplified state management ---
     const [jobs, setJobs] = useState([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState('');
-    const [viewingJob, setViewingJob] = useState(null); // State for the modal
+    const [viewingJob, setViewingJob] = useState(null);
     const navigate = useNavigate();
+    const [searchTerm, setSearchTerm] = useState('');
+    const debouncedSearchTerm = useDebounce(searchTerm, 300);
 
     useEffect(() => {
         const fetchJobs = async () => {
             setIsLoading(true);
             setError('');
+            
+            const params = new URLSearchParams();
+            if (debouncedSearchTerm) {
+                params.append('search', debouncedSearchTerm);
+            }
+            const url = `http://localhost:8000/api/jobs/?${params.toString()}`;
+
             try {
-                // Fetch the list of all job postings.
-                // This endpoint must be made public on the backend.
-                const response = await fetch('http://localhost:8000/api/jobs/');
+                const response = await fetch(url);
                 if (!response.ok) {
                     throw new Error('Could not fetch job postings. Please try again later.');
                 }
                 const data = await response.json();
-                setJobs(data);
+                // --- FIX: Correctly set the jobs array from the 'results' property ---
+                setJobs(data.results); 
             } catch (err) {
                 setError(err.message);
             } finally {
@@ -54,7 +72,7 @@ function PublicJobsPage() {
         };
 
         fetchJobs();
-    }, []);
+    }, [debouncedSearchTerm]);
 
     return (
         <>
@@ -66,7 +84,17 @@ function PublicJobsPage() {
                 
                 <div className="bg-white rounded-xl shadow-lg border border-slate-200">
                     <div className="p-6 border-b border-slate-200">
-                         <h2 className="text-2xl font-bold text-slate-800">Open Positions</h2>
+                         <div className="flex justify-between items-center">
+                             <h2 className="text-2xl font-bold text-slate-800">Open Positions</h2>
+                            {/* Conditionally render search bar based on initial job count */}
+                            <input 
+                                type="text"
+                                placeholder="Search by title or keyword..."
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="w-1/2 px-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                            />
+                        </div>
                     </div>
                     <div>
                         {error && <div className="p-6 text-center text-red-600">{error}</div>}
@@ -74,12 +102,14 @@ function PublicJobsPage() {
                             <div className="p-6 text-center text-slate-500">Loading jobs...</div>
                         ) : (
                             <ul className="divide-y divide-slate-200">
+                               {/* --- FIX: Map over the 'jobs' array directly --- */}
                                {jobs.length > 0 ? jobs.map(job => (
                                    <li key={job.id} className="p-6 hover:bg-slate-50/50 transition-colors">
                                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-center">
                                            <div className="md:col-span-3">
                                                 <h3 className="text-xl font-semibold text-indigo-700">{job.title}</h3>
-                                                <p className="text-slate-500 mt-2 line-clamp-2">{job.description}</p>
+                                                {/* This div strips HTML for the preview, only showing plain text */}
+                                                <div className="text-slate-500 mt-2 line-clamp-2" dangerouslySetInnerHTML={{ __html: job.description }} />
                                            </div>
                                            <div className="md:col-span-1 md:text-right flex md:flex-col items-center justify-end space-x-2 md:space-x-0 md:space-y-2">
                                                 <button 
@@ -98,7 +128,12 @@ function PublicJobsPage() {
                                        </div>
                                    </li>
                                )) : (
-                                   <li className="p-6 text-center text-slate-500">No open positions at the moment. Please check back later!</li>
+                                   <li className="p-6 text-center text-slate-500">
+                                        {debouncedSearchTerm 
+                                            ? `No jobs found for "${debouncedSearchTerm}".` 
+                                            : "No open positions at the moment. Please check back later!"
+                                        }
+                                   </li>
                                )}
                             </ul>
                         )}
@@ -106,7 +141,6 @@ function PublicJobsPage() {
                 </div>
             </div>
 
-            {/* Render the modal when a job is selected for viewing */}
             <JobDetailModal job={viewingJob} onClose={() => setViewingJob(null)} />
         </>
     );

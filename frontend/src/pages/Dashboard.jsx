@@ -19,7 +19,8 @@ function DashboardPage({ auth }) {
                     throw new Error('Failed to fetch job postings.');
                 }
                 const data = await response.json();
-                setJobs(data);
+                // --- FIX: Access the .results array from the paginated response ---
+                setJobs(data.results);
             } catch (err) {
                 setError(err.message);
             } finally {
@@ -31,6 +32,28 @@ function DashboardPage({ auth }) {
             fetchJobs();
         }
     }, [auth.token]);
+
+    const handleDelete = async (jobId) => {
+        if (!window.confirm('Are you sure you want to delete this job posting? This action cannot be undone.')) {
+            return;
+        }
+
+        try {
+            const response = await fetch(`http://localhost:8000/api/jobs/${jobId}/`, {
+                method: 'DELETE',
+                headers: { 'Authorization': `Token ${auth.token}` }
+            });
+
+            if (response.status !== 204) {
+                throw new Error('Failed to delete the job posting.');
+            }
+            
+            setJobs(jobs.filter(job => job.id !== jobId));
+
+        } catch (err) {
+            setError(err.message);
+        }
+    };
 
     return (
         <div className="w-full bg-white rounded-xl shadow-lg border border-slate-200">
@@ -58,21 +81,32 @@ function DashboardPage({ auth }) {
                         </li>
                     ) : (
                         jobs.map(job => (
-                            <li key={job.id} className="p-4 hover:bg-slate-50/50">
-                                <div 
-                                    className="grid grid-cols-12 gap-4 items-center cursor-pointer"
-                                    onClick={() => navigate(`/dashboard/job/${job.id}/candidates`)}
-                                >
-                                    <div className="col-span-8">
-                                        <p className="font-semibold text-slate-800">{job.title}</p>
+                            <li key={job.id} className="p-4 group hover:bg-slate-50/50">
+                                <div className="grid grid-cols-12 gap-4 items-center">
+                                    <div 
+                                        className="col-span-8 cursor-pointer"
+                                        onClick={() => navigate(`/dashboard/job/${job.id}/candidates`)}
+                                    >
+                                        <p className="font-semibold text-slate-800 group-hover:text-indigo-600">{job.title}</p>
                                         <p className="text-sm text-slate-500 truncate">
                                             {job.description}
                                         </p>
                                     </div>
                                     <div className="col-span-4 text-right">
-                                        <span className="text-xs text-slate-400">
-                                            Posted on: {new Date(job.created_at).toLocaleDateString()}
-                                        </span>
+                                        <div className="flex items-center justify-end space-x-3">
+                                            <button 
+                                                onClick={() => navigate(`/edit-job/${job.id}`)}
+                                                className="text-sm font-medium text-slate-500 hover:text-indigo-600"
+                                            >
+                                                Edit
+                                            </button>
+                                            <button 
+                                                onClick={() => handleDelete(job.id)}
+                                                className="text-sm font-medium text-slate-500 hover:text-red-600"
+                                            >
+                                                Delete
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             </li>
