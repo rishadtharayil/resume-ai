@@ -1,33 +1,42 @@
 from django.db import models
+from django.contrib.auth.models import User
 
-class Category(models.Model):
-    name = models.CharField(max_length=100, unique=True)
+class JobDescription(models.Model):
+    title = models.CharField(max_length=255)
+    description = models.TextField()
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE)
+    created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return self.name
-
-    class Meta:
-        verbose_name_plural = "Categories"
-
+        return self.title
 
 class Resume(models.Model):
+    # --- NEW: Status Field ---
+    STATUS_CHOICES = [
+        ('New', 'New'),
+        ('Under Review', 'Under Review'),
+        ('Interviewing', 'Interviewing'),
+        ('Offer', 'Offer'),
+        ('Hired', 'Hired'),
+        ('Rejected', 'Rejected'),
+    ]
+    status = models.CharField(
+        max_length=50,
+        choices=STATUS_CHOICES,
+        default='New',
+        help_text="The current status of the applicant in the hiring pipeline."
+    )
+
     name = models.CharField(max_length=255, null=True, blank=True)
     email = models.EmailField(null=True, blank=True)
-    phone = models.CharField(max_length=50, null=True, blank=True)
-
-    skills = models.TextField(null=True, blank=True, help_text="Comma-separated skills")
-    experience = models.TextField(null=True, blank=True)
-    education = models.TextField(null=True, blank=True)
-    projects = models.TextField(null=True, blank=True) 
+    scorecard_data = models.JSONField(null=True, blank=True)
     
-    categories = models.ManyToManyField(Category, blank=True, related_name='resumes')
-
-    # --- NEW FIELD ---
-    # To store the AI-generated rating for the candidate.
-    rating = models.IntegerField(null=True, blank=True, help_text="AI-generated rating from 1 to 10")
+    job_description = models.ForeignKey(JobDescription, on_delete=models.SET_NULL, null=True, blank=True, related_name='resumes')
 
     original_cv = models.FileField(upload_to='resumes/', null=True, blank=True, help_text="Upload the original CV file")
     uploaded_on = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
+        if self.scorecard_data and 'basic_information' in self.scorecard_data:
+            return self.scorecard_data['basic_information'].get('name', f"Resume {self.id}")
         return self.name or f"Resume {self.id}"
